@@ -1,0 +1,6 @@
+streamlit==1.55.0
+Authlib==1.6.9
+requests==2.33.0
+pillow==12.2.0
+
+

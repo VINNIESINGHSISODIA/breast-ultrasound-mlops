@@ -1,0 +1,130 @@
+- name: k8s-deployment
+  hosts: k8s-node
+  become: yes
+  gather_facts: yes
+  vars:
+    kubernetes_apt_version: "v1.36"
+    kubeconfig_path: "{{ KUBECONFIG | default('/etc/kubernetes/admin.conf') }}"
+    docker_registry_auth: "{{ (docker_user_name ~ ':' ~ docker_password) | b64encode }}"
+    manifest_dir: /tmp/breast-cancer-segmentation
+    manifest_files:
+      - namespace.yaml
+      - registry-secret.yaml
+      - configmap.yaml
+      - secret.yaml
+      - backend-dep-ser.yaml
+      - frontend-dep-ser.yaml
+
+  pre_tasks:
+    - name: Validate required deployment variables
+      ansible.builtin.assert:
+        that:
+          - lookup('vars', item, default='') | string | length > 0
+        fail_msg: "Required variable '{{ item }}' is missing. Pass it with --extra-vars or define it in Ansible Vault."
+        quiet: true
+      loop:
+        - docker_user_name
+        - docker_password
+        - AWS_ACCESS_KEY_ID
+        - AWS_SECRET_ACCESS_KEY
+        - AWS_REGION
+        - GOOGLE_CLIENT_ID
+        - GOOGLE_CLIENT_SECRET
+        - GOOGLE_REDIRECT_URI
+        - MLFLOW_TRACKING_URI
+        - EXPERIMENT_NAME
+        - API_URL
+
+  tasks:
+    - name: Install Kubernetes apt repository prerequisites
+      ansible.builtin.apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - gnupg
+        state: present
+        update_cache: yes
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Create apt keyring directory
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Download Kubernetes apt repository signing key
+      ansible.builtin.get_url:
+        url: "https://pkgs.k8s.io/core:/stable:/{{ kubernetes_apt_version }}/deb/Release.key"
+        dest: /etc/apt/keyrings/kubernetes-apt-keyring.asc
+        mode: "0644"
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Add Kubernetes apt repository
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io/core:/stable:/{{ kubernetes_apt_version }}/deb/ /"
+        filename: kubernetes
+        state: present
+        update_cache: yes
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Install kubectl
+      ansible.builtin.apt:
+        name: kubectl
+        state: present
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Create temporary manifest directory
+      ansible.builtin.file:
+        path: "{{ manifest_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Check kubeconfig
+      ansible.builtin.stat:
+        path: "{{ kubeconfig_path }}"
+      register: kubeconfig
+
+    - name: Verify kubeconfig exists
+      ansible.builtin.assert:
+        that:
+          - kubeconfig.stat.exists
+        fail_msg: "Kubeconfig not found at '{{ kubeconfig_path }}'. Pass its remote path with --extra-vars KUBECONFIG=/path/to/config."
+        quiet: true
+
+    - name: Render and apply Kubernetes manifests
+      block:
+        - name: Render Kubernetes manifests
+          ansible.builtin.template:
+            src: "templates/{{ item }}.j2"
+            dest: "{{ manifest_dir }}/{{ item }}"
+            mode: "0600"
+          loop: "{{ manifest_files }}"
+          no_log: true
+
+        - name: Apply Kubernetes manifests
+          ansible.builtin.command:
+            argv:
+              - kubectl
+              - apply
+              - --filename
+              - "{{ manifest_dir }}/{{ item }}"
+          loop: "{{ manifest_files }}"
+          register: kubectl_apply
+          changed_when: "'configured' in kubectl_apply.stdout or 'created' in kubectl_apply.stdout"
+          environment:
+            KUBECONFIG: "{{ kubeconfig_path }}"
+      always:
+        - name: Remove rendered Kubernetes manifests
+          ansible.builtin.file:
+            path: "{{ manifest_dir }}"
+            state: absent
+          no_log: true
+        - name: Start Streamlit port forward
+          shell: |
+              nohup kubectl port-forward \
+              --address 0.0.0.0 \
+              -n mlops-project \
+              svc/streamlit-service \
+              30001:8501 \
+              > /tmp/streamlit-portforward.log 2>&1 &

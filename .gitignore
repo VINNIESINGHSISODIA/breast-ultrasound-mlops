@@ -1,0 +1,17 @@
+datasets/
+logs/
+models/
+results/
+data/
+__pycache__/
+*.pth
+*.pt
+mlflow.db
+mlruns/
+*.log
+*.csv
+Predict_Microservice/helper.txt
+src/helper.md
+/data
+*/.env
+helper_multi.txt
