@@ -1,12 +1,8 @@
-import base64
+import io
 
-# from Predict_Microservice.select_best_model import select_best_model
-from select_best_model import select_best_model
 import torch
-from fastapi import FastAPI, File, UploadFile
 import numpy as np
 from PIL import Image
-import io
 import cv2
 
 from monai.transforms import (
@@ -41,7 +37,6 @@ def predict_pipeline(model, contents):
         model.eval()
         seg_out, cls_out = model(input_tensor)
         # print("softmax:", torch.softmax(cls_out, dim=1))
-        predicted_class = torch.softmax(cls_out, dim=1)
         idx_to_class = {
         0: "normal",
         1: "benign",
