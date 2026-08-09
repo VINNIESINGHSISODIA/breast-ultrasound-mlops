@@ -24,7 +24,7 @@ def train_one_epoch(model,optimizer, loader, device,cls_loss_fn,seg_loss_fn):
         optimizer.zero_grad()
 
         seg_out, cls_out = model(images)
-        preds=(seg_out > 0.5).float()  # Thresholding for binary segmentation   
+        preds=(torch.sigmoid(seg_out) > 0.5).float()  # sigmoid then threshold   
         dice_metric(preds, masks)
         
         # classification loss (always)
@@ -90,7 +90,7 @@ def validation(model, loader, device,cls_loss_fn,seg_loss_fn):
 
             # 🔥 forward pass (missing before)
             seg_out, cls_out = model(images)
-            preds=(seg_out > 0.5).float()  # Thresholding for binary segmentation   
+            preds=(torch.sigmoid(seg_out) > 0.5).float()  # sigmoid then threshold   
             dice_metric(preds, masks)
 
             # classification loss
@@ -109,10 +109,10 @@ def validation(model, loader, device,cls_loss_fn,seg_loss_fn):
 
             if count > 0:
                 loss_seg = loss_seg_batch / count
-                loss = loss_seg + 0.5 * loss_cls
+                loss = 0.7 * loss_seg + 0.3 * loss_cls
                 seg_loss_total += loss_seg.item()
             else:
-                loss = 0.5 * loss_cls
+                loss = 0.3 * loss_cls
 
             cls_loss_total += loss_cls.item()
             pred_class=torch.argmax(cls_out,dim=1)
