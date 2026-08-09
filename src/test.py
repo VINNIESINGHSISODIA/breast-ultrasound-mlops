@@ -1,6 +1,5 @@
 # test.py
 
-from flask.cli import load_dotenv
 import torch
 import torch.nn as nn
 import mlflow
@@ -11,6 +10,7 @@ from modules.engine import validation
 from modules.model import get_model
 from modules.dataset import create_data_list, create_val_transforms, get_loader
 from dotenv import load_dotenv
+from monai.losses import DiceLoss
 
 def test():
 
@@ -60,7 +60,7 @@ def test():
     # 5. Metrics
     # -------------------------
     cls_loss_fn = nn.CrossEntropyLoss()
-    seg_loss_fn = nn.BCEWithLogitsLoss()
+    seg_loss_fn = DiceLoss(sigmoid=True)
     
     
     # run_id=os.getenv("RUN_ID")
@@ -74,7 +74,6 @@ def test():
             model=mlflow.pytorch.load_model(f"runs:/{run_id}/best_model")
             print(f"✅ Loaded model from MLflow run: {run_id}")
             model.to(device)
-            model.train()
             total_test_loss,test_dice,test_accuracy,f1=validation(model, test_loader, device, cls_loss_fn, seg_loss_fn)
             print("Test Loss:", total_test_loss)
             print("Test Dice:", test_dice)
