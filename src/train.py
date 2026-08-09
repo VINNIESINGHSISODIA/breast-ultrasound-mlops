@@ -1,31 +1,15 @@
-# CI/CD demo trigger 4
-import torch.nn as nn
-from monai.losses import DiceLoss
+# train.py
+import os
 import torch
 import torch.nn as nn
 import mlflow
 import mlflow.pytorch
 from dotenv import load_dotenv
-from collections import Counter
 
 from modules.model import get_model
 from modules.dataset import create_data_list, create_train_transforms, create_val_transforms, get_loader
 from modules.engine import train_one_epoch, validation
-
-# train.py
-
-import torch
-import torch.nn as nn
-import mlflow
-import mlflow.pytorch
-
-from modules.model import MaskClassifyModel
-from modules.dataset import create_data_list, create_train_transforms, create_val_transforms, get_loader
-from modules.engine import train_one_epoch, validation
 from monai.losses import DiceLoss
-
-# from download_from_s3 import download_from_s3, get_latest_augmented_prefix
-import os
 
 
 def train():
